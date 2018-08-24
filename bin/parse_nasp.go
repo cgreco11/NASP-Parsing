@@ -95,6 +95,7 @@ func parseAttFile(att_file string)(map[int]map[string]string){
         att_dict[i]["End"] = out_end
         att_dict[i]["Locus"] = locus
         att_dict[i]["Product"] = product
+        att_dict[i]["Orientation"] = "-"
     } else {
     out_start := strconv.Itoa(start)
     out_end := strconv.Itoa(end)
@@ -103,6 +104,7 @@ func parseAttFile(att_file string)(map[int]map[string]string){
     att_dict[i]["Start"] = out_start
     att_dict[i]["End"] = out_end
     att_dict[i]["Product"] = product
+    att_dict[i]["Orientation"] = "+"
   }}
   return att_dict
 }
@@ -121,7 +123,7 @@ func annotateTSV(tsvMatrix map[string]string, attMatrix map[int]map[string]strin
     var length []string
     var locations []string
     var snpPosition []string
-
+    var orientation []string
     for i,_ := range attMatrix{ // Account for overlapping contig positions? ATT File designation
       start,_ := strconv.Atoi(attMatrix[i]["Start"])
       end,_ := strconv.Atoi(attMatrix[i]["End"])
@@ -132,6 +134,7 @@ func annotateTSV(tsvMatrix map[string]string, attMatrix map[int]map[string]strin
         length = append(length, strconv.Itoa((end - start)))
         snpPosition = append(snpPosition, strconv.Itoa((genome_loc - start)))
         locations = append(locations, (strconv.Itoa(start) + "-" + strconv.Itoa(end)))
+        orientation = append(orientation, attMatrix[i]["Orientation"])
       }
     }
     new_locus := strings.Join(locus, "/")
@@ -140,7 +143,8 @@ func annotateTSV(tsvMatrix map[string]string, attMatrix map[int]map[string]strin
     new_location := strings.Join(locations, "/")
     new_snpPosition := strings.Join(snpPosition, "/")
     new_GenomeLoc := strings.Split(k, "::")[1]
-    split_v = append(split_v, new_GenomeLoc, new_locus, new_product, new_length, new_location, new_snpPosition)
+    new_orientation := strings.Join(orientation, "/")
+    split_v = append(split_v, new_GenomeLoc, new_locus, new_product, new_length, new_location, new_snpPosition, new_orientation)
     tsv_dict[k] = strings.Join(split_v, "\t")
   }
   header_dict = tsvHeader
@@ -151,6 +155,7 @@ func annotateTSV(tsvMatrix map[string]string, attMatrix map[int]map[string]strin
   header_dict[headerDictLength + 4] = "Locus Length"
   header_dict[headerDictLength + 5] = "Locus Locations"
   header_dict[headerDictLength + 6] = "SNP Location within Locus"
+  header_dict[headerDictLength + 7] = "DNA Strand Orientation"
   return tsv_dict, header_dict
 }
 
