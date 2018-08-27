@@ -19,12 +19,10 @@ def create_group_mapping(cluster_file):
 			genome_to_group_dict[genome] = group
 	return genome_to_group_dict
 
-def readGoStdOut(att_file, group_file, threshold, tsv_file):
-	p = subprocess.Popen([get_script_path() + '/bin/parse_nasp', '-attFile', att_file, '-groupFile', group_file, '-threshold', threshold, '-tsvFile', tsv_file], stdout=subprocess.PIPE)
-	csv = io.StringIO(p.stdout.read().decode())
-	dataframe = pd.read_csv(csv, sep = "\t", header = 0, low_memory = False)
-	csv.close()
-	return dataframe
+def readGoStdOut(group_file, threshold, tsv_file, strain_name):
+    p = subprocess.call([get_script_path() + '/bin/parse_nasp', '-groupFile', group_file, '-threshold', threshold, '-tsvFile', tsv_file, "-strainName", strain_name])
+    dataframe = pd.read_csv("annotated_bestsnp.tsv", sep = "\t", header = 0, low_memory = False)
+    return dataframe
 
 def formatDataframe(dataframe, groupMap):
 	columns_to_drop = ["#Indelcall", "#CallWasMade", "#PassedDepthFilter", "#PassedProportionFilter", "#Indel", "#NXdegen", "Contig", "InDupRegion", "SampleConsensus", "CallWasMade", "PassedDepthFilter", "PassedProportionFilter", "Pattern", "Position"]
@@ -41,9 +39,9 @@ def formatDataframe(dataframe, groupMap):
 	return dataframe
 
 def createATTfile(gb_file):
-	with open('genome.list', 'w') as f:
-		f.write(gb_file)
-	subprocess.call(['perl', get_script_path() + '/bin/parse_genbank_files.pl', '--file_list', "genome.list", '--no_dos2unix', '--nuc', '--no_check'], shell = False)
+    with open('genome.list', 'w') as f:
+        f.write(gb_file)
+    subprocess.call(['perl', get_script_path() + '/bin/parse_genbank_files.pl', '--file_list', "genome.list", '--no_dos2unix', '--nuc', '--no_check'], shell = False)
 
 def createReferenceFasta(gb_file, strain_name):
 	headers = []
@@ -110,90 +108,60 @@ def runSNPeff(config_file, strain_name, vcf_file):
 	with open("bestsnpAnnotated.vcf", 'w') as out_vcf:
 		out_vcf.write(out)
 
-def parseAnnotatedBestsnp():
-	out_dict = {}
-	with open("bestsnpAnnotated.vcf", 'r') as ann_vcf:
-		for row in ann_vcf:
-			if row.startswith("#"):
-				pass
-			else:
-				split_row = row.strip().split("\t")
-				key = split_row[0] + "::" + split_row[1]
-				val = split_row[7]
-				out_dict[key] = val
-	return out_dict
-
-def addSNPEffInfo(row, infoDict):
-	info = infoDict[row["LocusID"]]
-	try:
-		split_info = info.split("(")[1].split("|")
-		effect_impact = split_info[0]
-		effect = split_info[1]
-		nuc_change = split_info[2]
-		protein_notation = split_info[3]
-		amino_acid_length = split_info[4]
-	except:
-		effect_impact = ""
-		effect = ""
-		nuc_change = ""
-		protein_notation = ""
-		amino_acid_length = ""
-		#nucleotide_notation = ""
-	return pd.Series({"Effect": effect, "Effect_Impact": effect_impact, "Protein_Notation" : protein_notation, "Nucleotide Change": nuc_change, "Amino Acid Length": amino_acid_length})
-
 
 def main():
-	parser = argparse.ArgumentParser(description = "Parse NASP Output.")
-	parser.add_argument('--strain_name', help = 'Strain Name of Reference Genome', required = True)
-	parser.add_argument('-g', '--genbank_file', help = 'Reference RefSeq file from NCBI', required = True)
-	parser.add_argument('-m', '--matrix_file', help = 'nasp_results/matrices/bestsnp.tsv', required = True)
-	parser.add_argument("-b", '--vcf_file', help = 'nasp_results/matrices/bestsnp.vcf', required = True)
-	parser.add_argument("-c", '--cluster_file', help = 'Tab separated grouping file with 2 columns -- Genome Name and then whatever group that genome belongs to', required = True)
-	parser.add_argument("-t", '--threshold', help = 'Threshold at which SNP Groups are reported (100 means that all genomes in group must have SNP for it to be reported) -- Default is 90', default = 90)
-	parser.add_argument("-o", '--out_file', help = 'Out File Name', default = 'nasp_parse_results.txt')
+    parser = argparse.ArgumentParser(description = "Parse NASP Output.")
+    parser.add_argument('--strain_name', help = 'Strain Name of Reference Genome', required = True)
+    parser.add_argument('-g', '--genbank_file', help = 'Reference RefSeq file from NCBI', required = True)
+    parser.add_argument('-m', '--matrix_file', help = 'nasp_results/matrices/bestsnp.tsv', required = True)
+    parser.add_argument("-b", '--vcf_file', help = 'nasp_results/matrices/bestsnp.vcf', required = True)
+    parser.add_argument("-c", '--cluster_file', help = 'Tab separated grouping file with 2 columns -- Genome Name and then whatever group that genome belongs to', required = True)
+    parser.add_argument("-t", '--threshold', help = 'Threshold at which SNP Groups are reported (100 means that all genomes in group must have SNP for it to be reported) -- Default is 90', default = 90)
+    parser.add_argument("-o", '--out_file', help = 'Out File Name', default = 'nasp_parse_results.txt')
 
-	args = parser.parse_args()
-	strain_name = args.strain_name
-	genbank_file = args.genbank_file
-	tsv_file = args.matrix_file
-	vcf_file = args.vcf_file
-	group_file = args.cluster_file
-	out_file = args.out_file
-	threshold = str(float(args.threshold))
-	config_file = "snpEff/snpEff.config"
+    args = parser.parse_args()
+    strain_name = args.strain_name
+    genbank_file = args.genbank_file
+    tsv_file = args.matrix_file
+    vcf_file = args.vcf_file
+    group_file = args.cluster_file
+    out_file = args.out_file
+    threshold = str(float(args.threshold))
+    config_file = "snpEff/snpEff.config"
 
-	#Install SNPeff directory locally
-	try:
-		getSNPeff()
-	except:
-		print
-		print "ERROR: Unable to install snpEff"
-		print
-		sys.exit()
+    #Install SNPeff directory locally
+    try:
+    	getSNPeff()
+    except:
+    	print
+    	print "ERROR: Unable to install snpEff"
+    	print
+    	sys.exit()
 
 	#Set Up SNPEff run
-	createReferenceFasta(genbank_file, strain_name)
-	createSNPeffDirectories(strain_name, genbank_file)
-	chrom_list, chrom_dict = getChromosomeNames(strain_name)
+    createReferenceFasta(genbank_file, strain_name)
+    createSNPeffDirectories(strain_name, genbank_file)
+    chrom_list, chrom_dict = getChromosomeNames(strain_name)
+    groupMappingDict = create_group_mapping(group_file)
+    print "Setting up snpEff run."
+    editGBfile('snpEff/data/' + strain_name + '/genes.gbk', chrom_dict, strain_name)
+    config_string = createConfigString(chrom_list, strain_name)
+    editConfigFile(config_file, config_string)
+    buildSNPeffDatabase(config_file, strain_name)
+    print "Running snpEff."
+    runSNPeff(config_file, strain_name, vcf_file)
 
-	editGBfile('snpEff/data/' + strain_name + '/genes.gbk', chrom_dict, strain_name)
-	config_string = createConfigString(chrom_list, strain_name)
-	editConfigFile(config_file, config_string)
-	buildSNPeffDatabase(config_file, strain_name)
-	runSNPeff(config_file, strain_name, vcf_file)
-	print "Parsing NASP and adding snpEff results."
-	#Parse RefSeq File
-	gb_prefix = genbank_file.split(".")[0]
+    #Parse RefSeq File
+    gb_prefix = genbank_file.split(".")[0]
 
-	createATTfile(genbank_file)
-	att_file = gb_prefix + ".att"
-	snpEff_Info_Dict = parseAnnotatedBestsnp()
-	#Create DataFrame
-	df = readGoStdOut(att_file, group_file, threshold, tsv_file)
-	df[["Amino Acid Length", "SNP Effect", "Effect Impact", "Nucleotide Change", "Amino Acid Change"]] = df.apply(lambda x: addSNPEffInfo(x, snpEff_Info_Dict), axis = 1)
-	groupMappingDict = create_group_mapping(group_file)
-	df = formatDataframe(df, groupMappingDict)
-	df.fillna("").sort_values(by = ["Groups Passing Threshold", "SNP's Genome Location"]).to_csv(out_file, sep = "\t", index = False)
+    createATTfile(genbank_file)
+    att_file = gb_prefix + ".att"
+
+    #Create DataFrame
+    print "Parsing NASP results and adding snpEff results."
+    df = readGoStdOut(group_file, threshold, tsv_file, strain_name)
+    df = formatDataframe(df, groupMappingDict)
+    df.fillna("").sort_values(by = ["Groups Passing Threshold", "SNP's Genome Location"]).to_csv(out_file, sep = "\t", index = False)
 
 
 if __name__ == '__main__':
