@@ -257,7 +257,7 @@ func groupStatsPerLocus(groupIndexDict map[string][]int, tsvMatrix map[string]st
         }
         floatGroupIndices := float64(len(groupIndices))
         snpPercentage := (count / floatGroupIndices) * 100
-        if snpPercentage > thresholdVal{
+        if snpPercentage >= thresholdVal{
           groupInfo = append(groupInfo, group)
         } else {
           groupInfo = append(groupInfo, "Not " + group)
@@ -310,7 +310,7 @@ func writeOutput(header string, body map[string]string){
     os.Exit(1)
   }
   defer f.Close()
-  _, err = f.WriteString(header)
+  _, err = f.WriteString(fmt.Sprintf("%s\n", header))
   if err != nil {
     fmt.Println("Error writing annotated_bestsnp.tsv")
   }
